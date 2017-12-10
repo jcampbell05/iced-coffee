@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "esprima": "^4.0.0",
+    "llvm-node": "^2.0.4"
+  }
+}
