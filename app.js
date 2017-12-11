@@ -27,9 +27,7 @@ function compileExpression(expression, meta) {
 
 function compileCallExpression(expression, meta) {
 
-    console.log(expression);
-
-    // var compiledArguments = compileCallArguments(expression.arguments);
+    var compiledArguments = compileCallArguments(expression.arguments, meta);
 
     // If callee is method of an object
     if (expression.callee.type === "MemberExpression") {
@@ -40,20 +38,22 @@ function compileCallExpression(expression, meta) {
         const funcType = llvm.FunctionType.get(funcReturnType, [], true)
         const func = meta.module.getOrInsertFunction(expression.callee.name, funcType)
         
-        meta.builder.createCall(func, [])
+        console.log(compiledArguments)
+
+        meta.builder.createCall(func, compiledArguments)
     }
 }
 
-function compileCallArguments(args) {
+function compileCallArguments(args, meta) {
     var compiledArguments = [];
     var i;
 
     // @number
     for (i = 0; i < args.length; ++i) {
-        compiledArguments.push(compileExpression(args[i]));
+        compiledArguments.push(compileExpression(args[i], meta));
     }
 
-    return compiledArguments.join(' ');
+    return compiledArguments
 }
 
 function compileIdentifier(identifier, meta) {
@@ -94,8 +94,7 @@ function compileLiteral(literal, meta) {
 
     switch (typeof (literal.value)) {
         case "string":
-            // @string
-            ret = '"' + literal.value + '"';
+            ret = meta.builder.createGlobalStringPtr(literal.value)
     }
 
     return ret;
@@ -108,7 +107,9 @@ function compileListOfStatements(context, statementList) {
     const mainFuncReturnType = llvm.Type.getInt32Ty(context)
     const mainFuncType = llvm.FunctionType.get(
         mainFuncReturnType,
-        [],
+        [
+            llvm.Type.getInt8PtrTy(context)
+        ],
         false
     )
     const mainFunc = llvm.Function.create(

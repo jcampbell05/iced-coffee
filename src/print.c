@@ -1,6 +1,7 @@
 #include <stdio.h>
 
-void print()
-{
-    printf("Load/store Instruction \n");
+void print(const char *text)
+{   
+    printf("%s", text);
+    fflush(stdout);
 }
