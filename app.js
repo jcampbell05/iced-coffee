@@ -1,13 +1,12 @@
+// Based on BashJS and Castl.js
+
 const esprima = require('esprima');
 const llvm = require("llvm-node");
 const fs = require('fs');
 
 const program = fs.readFileSync('example.js', 'utf8')
 const ast = esprima.parse(program);
-
-const variableContext = {
-    variables: {}
-}
+const variableContext = {};
 
 function compileExpression(expression, meta) {
     switch(expression.type) {
@@ -35,10 +34,10 @@ function compileCallExpression(expression, meta) {
     } else {
 
         const funcReturnType = llvm.Type.getVoidTy(meta.context)
-        const funcType = llvm.FunctionType.get(funcReturnType, [], true)
+        const funcType = llvm.FunctionType.get(funcReturnType, [
+            llvm.Type.getInt8PtrTy(meta.context)
+        ], true)
         const func = meta.module.getOrInsertFunction(expression.callee.name, funcType)
-        
-        console.log(compiledArguments)
 
         meta.builder.createCall(func, compiledArguments)
     }
@@ -57,16 +56,25 @@ function compileCallArguments(args, meta) {
 }
 
 function compileIdentifier(identifier, meta) {
+    var variable = variableContext[identifier.name] 
 
-    const context = variableContext.variables[identifier.name]
+    if (!variable && meta.value) {
 
-    if(context && context.type === 'ArrayExpression') {
-        return '${' + identifier.name + '[@]}'
-    } else if (meta && meta.ignoreSub) {
-        return identifier.name
-    } else {
-        return "$" + identifier.name
+        variable = new llvm.GlobalVariable(
+            meta.module,
+            llvm.Type.getInt8PtrTy(meta.context),
+            false,
+            llvm.LinkageTypes.InternalLinkage,
+            meta.value
+        );
+        variableContext[identifier.name] = variable
+
+    } else if (!variable) {
+
+        throw identifier.name + ' not declared'
     }
+
+    return variable.initializer
 }
 
 function compileArrayExpression(expression, meta) {
@@ -235,42 +243,20 @@ function compileFunction(fun) {
 
 function compileVariableDeclaration(variableDeclaration, meta) {
     
-    // var compiledDeclarations = [];
-    // var declarations = variableDeclaration.declarations;
-    // var i, declarator, pattern, expression, compiledDeclarationInit;
+    var declarations = variableDeclaration.declarations;
+    var i, declarator;
 
-    // for (i = 0; i < declarations.length; ++i) {
-    //     declarator = declarations[i];
-    //     pattern = compilePattern(declarator.id, {
-    //         ignoreSub: true
-    //     });
+    for (i = 0; i < declarations.length; ++i) {
 
-    //     if (declarator.init !== null) {
+        declarator = declarations[i];
 
-    //         variableContext.variables[pattern] = {
-    //             type: declarator.init.type
-    //         }
+        if (declarator.init !== null) {
+            var value = compileExpression(declarator.init, meta);
+            meta.value = value
 
-    //         expression = compileExpression(declarator.init);
-
-    //         if (declarator.init.type === 'CallExpression') {
-    //             compiledDeclarations.push(expression);
-
-    //             var compiledDeclarationInit = [];
-    //             compiledDeclarationInit.push(pattern);
-    //             compiledDeclarationInit.push("=$RETURN");
-    //             compiledDeclarations.push(compiledDeclarationInit.join(''));
-    //         } else {
-    //             var compiledDeclarationInit = [];
-    //             compiledDeclarationInit.push(pattern);
-    //             compiledDeclarationInit.push("=");
-    //             compiledDeclarationInit.push(expression);
-    //             compiledDeclarations.push(compiledDeclarationInit.join(''));
-    //         }
-    //     }
-    // }
-
-    // return compiledDeclarations.join("\n");
+            compileIdentifier(declarator.id, meta);
+        }
+    }
 }
 
 function compileIterationStatement(statement, compiledLabel) {

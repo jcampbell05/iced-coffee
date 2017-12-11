@@ -1,1 +1,2 @@
-print("Hello, World");
+const message = "Hello, World";
+print(message);
